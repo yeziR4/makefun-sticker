@@ -1,30 +1,32 @@
-// main.ts — makefun-sticker-01: renders a die-cut robot sticker to /output/entry.png.
+// main.ts — makefun-sticker-01: renders a terminal-window sticker to /output/entry.png.
 // Pure stdlib: zlib for the PNG deflate, no dependencies, deterministic output.
 import { deflateSync } from 'node:zlib';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
-const S = 1024; // canvas
-const SS = 3; // supersampling factor
+const S = 1024;
 
 type RGB = [number, number, number];
 
-const NAVY: RGB = [24, 34, 58];
-const NAVY_LIGHT: RGB = [38, 54, 88];
+const BG: RGB = [30, 31, 42];
+const BG_LIGHT: RGB = [44, 46, 62];
+const TITLEBAR: RGB = [52, 54, 72];
+const WHITE: RGB = [240, 244, 242];
 const MINT: RGB = [62, 207, 142];
 const MINT_DARK: RGB = [34, 158, 105];
-const WHITE: RGB = [245, 250, 248];
-const COIN: RGB = [39, 117, 202];
-const COIN_LIGHT: RGB = [102, 169, 240];
+const RED: RGB = [255, 95, 86];
+const YELLOW: RGB = [255, 189, 46];
+const GREEN: RGB = [39, 201, 63];
+const BLUE: RGB = [39, 117, 202];
+const BLUE_LIGHT: RGB = [102, 169, 240];
+const DIM: RGB = [130, 138, 156];
 
-const px: Float64Array = new Float64Array(S * SS * (S * SS) * 4); // r,g,b,a
-
-function clear(): void {
-  px.fill(0);
-}
+const SS = 3;
+const W = S * SS;
+const px: Float64Array = new Float64Array(W * W * 4); // r,g,b,a per supersampled pixel
 
 function blend(x: number, y: number, c: RGB, a: number): void {
-  if (x < 0 || y < 0 || x >= S * SS || y >= S * SS || a <= 0) return;
-  const i = (y * S * SS + x) * 4;
+  if (x < 0 || y < 0 || x >= W || y >= W || a <= 0) return;
+  const i = (y * W + x) * 4;
   const na = a + px[i + 3]! * (1 - a);
   if (na <= 0) return;
   px[i] = (c[0] * a + px[i]! * px[i + 3]! * (1 - a)) / na;
@@ -33,33 +35,23 @@ function blend(x: number, y: number, c: RGB, a: number): void {
   px[i + 3] = na;
 }
 
-function fillCircle(cx: number, cy: number, r: number, c: RGB, alpha = 1): void {
-  const x0 = Math.max(0, Math.floor((cx - r) * SS));
-  const x1 = Math.min(S * SS - 1, Math.ceil((cx + r) * SS));
-  const y0 = Math.max(0, Math.floor((cy - r) * SS));
-  const y1 = Math.min(S * SS - 1, Math.ceil((cy + r) * SS));
-  for (let y = y0; y <= y1; y++) {
-    for (let x = x0; x <= x1; x++) {
-      const dx = (x + 0.5) / SS - cx;
-      const dy = (y + 0.5) / SS - cy;
-      const d = Math.sqrt(dx * dx + dy * dy);
-      const cov = Math.min(1, Math.max(0, r - d + 0.5));
-      blend(x, y, c, cov * alpha);
+function fillRect(x0: number, y0: number, w: number, h: number, c: RGB, alpha = 1): void {
+  const X0 = Math.max(0, Math.floor(x0 * SS));
+  const X1 = Math.min(W - 1, Math.ceil((x0 + w) * SS));
+  const Y0 = Math.max(0, Math.floor(y0 * SS));
+  const Y1 = Math.min(W - 1, Math.ceil((y0 + h) * SS));
+  for (let y = Y0; y <= Y1; y++) {
+    for (let x = X0; x <= X1; x++) {
+      blend(x, y, c, alpha);
     }
   }
 }
 
-function ring(cx: number, cy: number, rOuter: number, rInner: number, c: RGB, alpha = 1): void {
-  fillCircle(cx, cy, rOuter, c, alpha);
-  fillCircle(cx, cy, rInner, c, 0); // punch through: restores what was under by re-blending with 0 alpha? no —
-}
-
-/** Rounded rectangle path fill. */
 function fillRoundRect(x0: number, y0: number, w: number, h: number, r: number, c: RGB, alpha = 1): void {
   const X0 = Math.max(0, Math.floor(x0 * SS) - 2);
-  const X1 = Math.min(S * SS - 1, Math.ceil((x0 + w) * SS) + 2);
+  const X1 = Math.min(W - 1, Math.ceil((x0 + w) * SS) + 2);
   const Y0 = Math.max(0, Math.floor(y0 * SS) - 2);
-  const Y1 = Math.min(S * SS - 1, Math.ceil((y0 + h) * SS) + 2);
+  const Y1 = Math.min(W - 1, Math.ceil((y0 + h) * SS) + 2);
   for (let y = Y0; y <= Y1; y++) {
     for (let x = X0; x <= X1; x++) {
       const px_ = (x + 0.5) / SS;
@@ -73,165 +65,127 @@ function fillRoundRect(x0: number, y0: number, w: number, h: number, r: number, 
   }
 }
 
-/** Filled convex polygon. */
-function fillPoly(pts: Array<[number, number]>, c: RGB, alpha = 1): void {
-  let minY = Infinity;
-  let maxY = -Infinity;
-  let minX = Infinity;
-  let maxX = -Infinity;
-  for (const [x, y] of pts) {
-    minY = Math.min(minY, y);
-    maxY = Math.max(maxY, y);
-    minX = Math.min(minX, x);
-    maxX = Math.max(maxX, x);
-  }
-  const Y0 = Math.max(0, Math.floor(minY * SS));
-  const Y1 = Math.min(S * SS - 1, Math.ceil(maxY * SS));
-  const X0 = Math.max(0, Math.floor(minX * SS));
-  const X1 = Math.min(S * SS - 1, Math.ceil(maxX * SS));
+function fillCircle(cx: number, cy: number, r: number, c: RGB, alpha = 1): void {
+  const X0 = Math.max(0, Math.floor((cx - r) * SS));
+  const X1 = Math.min(W - 1, Math.ceil((cx + r) * SS));
+  const Y0 = Math.max(0, Math.floor((cy - r) * SS));
+  const Y1 = Math.min(W - 1, Math.ceil((cy + r) * SS));
   for (let y = Y0; y <= Y1; y++) {
     for (let x = X0; x <= X1; x++) {
-      const px_ = (x + 0.5) / SS;
-      const py = (y + 0.5) / SS;
-      let inside = false;
-      for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
-        const [xi, yi] = pts[i]!;
-        const [xj, yj] = pts[j]!;
-        if (yi > py !== yj > py && px_ < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
-      }
-      if (inside) blend(x, y, c, alpha);
+      const dx = (x + 0.5) / SS - cx;
+      const dy = (y + 0.5) / SS - cy;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      const cov = Math.min(1, Math.max(0, r - d + 0.5));
+      blend(x, y, c, cov * alpha);
     }
   }
 }
 
-/** A 5x7 pixel font, rows top to bottom, 1 = ink. Covers the letters we need. */
+/** A 5x7 pixel font for the prompt and output lines. */
 const FONT: Record<string, string[]> = {
   a: ['01110', '10001', '10001', '11111', '10001', '10001', '10001'],
+  b: ['11110', '10001', '10001', '11110', '10001', '10001', '11110'],
   c: ['01111', '10000', '10000', '10000', '10000', '10000', '01111'],
+  d: ['11110', '10001', '10001', '10001', '10001', '10001', '11110'],
   e: ['01110', '10001', '10001', '11111', '10000', '10001', '01110'],
   f: ['00111', '01000', '01000', '11110', '01000', '01000', '01000'],
+  g: ['01111', '10000', '10000', '10111', '10001', '10001', '01111'],
+  i: ['01110', '00100', '00100', '00100', '00100', '00100', '01110'],
   k: ['10001', '10010', '10100', '11000', '10100', '10010', '10001'],
+  l: ['01000', '01000', '01000', '01000', '01000', '01000', '01110'],
   m: ['10001', '11011', '10101', '10101', '10001', '10001', '10001'],
   n: ['10010', '11010', '10110', '10010', '10010', '10010', '10010'],
+  o: ['01110', '10001', '10001', '10001', '10001', '10001', '01110'],
+  p: ['11110', '10001', '10001', '11110', '10000', '10000', '10000'],
+  r: ['11100', '10010', '11100', '10100', '10010', '10010', '10001'],
+  s: ['01111', '10000', '10000', '01110', '00001', '00001', '11110'],
+  t: ['11110', '00100', '00100', '00100', '00100', '00100', '00110'],
   u: ['10001', '10001', '10001', '10001', '10001', '10001', '01110'],
+  v: ['10001', '10001', '10001', '10001', '01010', '01010', '00100'],
+  w: ['10001', '10001', '10001', '10101', '10101', '10101', '01010'],
+  y: ['10001', '10001', '01010', '00100', '00100', '00100', '00100'],
   '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
+  ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
   $: ['00100', '01111', '11000', '01110', '00011', '11110', '00100'],
+  1: ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  4: ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  6: ['01110', '10001', '10000', '11110', '10001', '10001', '01110'],
+  9: ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  ':': ['00000', '01100', '01100', '00000', '01100', '01100', '00000'],
+  '>': ['01000', '00100', '00010', '00100', '01000', '00000', '00000'],
+  '-': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
 };
 
-function drawText(text: string, x0: number, y0: number, scale: number, c: RGB): number {
+function drawText(text: string, x0: number, y0: number, scale: number, c: RGB): void {
   let cx = x0;
   for (const ch of text) {
     const glyph = FONT[ch];
-    if (glyph === undefined) {
-      cx += 6 * scale;
-      continue;
-    }
-    for (let row = 0; row < 7; row++) {
-      for (let col = 0; col < 5; col++) {
-        if (glyph[row]![col] === '1') {
-          fillRoundRect(cx + col * scale, y0 + row * scale, scale, scale, scale * 0.28, c);
+    if (glyph !== undefined) {
+      for (let row = 0; row < 7; row++) {
+        for (let col = 0; col < 5; col++) {
+          if (glyph[row]![col] === '1') fillRoundRect(cx + col * scale, y0 + row * scale, scale, scale, scale * 0.3, c);
         }
       }
     }
     cx += 6 * scale;
   }
-  return cx - x0;
+}
+
+function clear(): void {
+  px.fill(0);
 }
 
 function render(): void {
   clear();
-  const cx = S / 2;
 
-  // --- badge: white die-cut border, navy panel ---
-  fillRoundRect(72, 60, 880, 904, 140, WHITE);
-  fillRoundRect(112, 100, 800, 824, 116, NAVY);
+  // --- die-cut white border and the terminal body ---
+  fillRoundRect(52, 52, 920, 920, 96, WHITE);
+  fillRoundRect(84, 84, 856, 856, 72, BG);
 
-  // --- robot head ---
-  // antenna with a glow
-  fillRoundRect(cx - 14, 190, 28, 100, 14, NAVY_LIGHT);
-  fillCircle(cx, 172, 44, MINT_DARK);
-  fillCircle(cx, 170, 36, MINT);
-  fillCircle(cx, 170, 15, WHITE);
+  // --- title bar with traffic lights ---
+  fillRoundRect(84, 84, 856, 130, 72, TITLEBAR);
+  fillRect(84, 170, 856, 44, TITLEBAR);
+  fillCircle(160, 149, 20, RED);
+  fillCircle(224, 149, 20, YELLOW);
+  fillCircle(288, 149, 20, GREEN);
 
-  // head: a wide rounded shape
-  fillRoundRect(cx - 262, 258, 524, 396, 110, NAVY_LIGHT);
-  // visor
-  fillRoundRect(cx - 216, 306, 432, 232, 84, [12, 18, 32]);
-  // eyes: big mint circles with two highlights each
-  fillCircle(cx - 108, 422, 62, MINT);
-  fillCircle(cx + 108, 422, 62, MINT);
-  fillCircle(cx - 124, 406, 22, WHITE);
-  fillCircle(cx - 92, 442, 10, WHITE);
-  fillCircle(cx + 92, 406, 22, WHITE);
-  fillCircle(cx + 124, 442, 10, WHITE);
-  // blush on the cheeks, below the visor
-  fillCircle(cx - 196, 566, 24, MINT_DARK);
-  fillCircle(cx + 196, 566, 24, MINT_DARK);
-  // smile
-  fillRoundRect(cx - 64, 596, 128, 20, 10, MINT);
-  // ears
-  fillRoundRect(cx - 296, 392, 36, 128, 18, MINT_DARK);
-  fillRoundRect(cx + 260, 392, 36, 128, 18, MINT_DARK);
+  // --- terminal lines ---
+  const lineH = 88;
+  const x0 = 150;
+  const right = 852; // values end here
+  const labelScale = 8;
+  const charW = 6 * labelScale;
 
-  // --- wordmark, centered under the head ---
-  const scale = 11;
-  const text = 'make.fun';
-  const w = text.length * 6 * scale;
-  drawText(text, cx - w / 2, 700, scale, WHITE);
+  // prompt: $ make fun
+  let y = 286;
+  drawText('$', x0, y, 12, MINT);
+  drawText('make fun', x0 + 90, y, 12, WHITE);
+  y += lineH;
 
-  // --- USDC-style coin, tucked into the bottom-right of the panel ---
-  const coinX = 806;
-  const coinY = 818;
-  fillCircle(coinX, coinY, 66, COIN);
-  fillCircle(coinX, coinY, 54, COIN_LIGHT);
-  fillCircle(coinX, coinY, 44, COIN);
-  fillRoundRect(coinX - 7, coinY - 33, 14, 66, 7, WHITE);
-  fillRoundRect(coinX - 24, coinY - 21, 48, 13, 6, WHITE);
-  fillRoundRect(coinX - 24, coinY + 8, 48, 13, 6, WHITE);
+  // output rows: label left, value right-aligned
+  const row = (label: string, value: string, color: RGB): void => {
+    drawText(label, x0, y, labelScale, DIM);
+    const vx = right - value.length * charW;
+    drawText(value, vx, y, labelScale, color);
+    y += lineH;
+  };
+  row('deployed', 'done', MINT);
+  row('bounties', '6', MINT);
+  row('reward', '4.9 usdc', BLUE_LIGHT);
 
-  // sparkles
-  fillPoly(
-    [
-      [244, 196],
-      [257, 234],
-      [295, 247],
-      [257, 260],
-      [244, 298],
-      [231, 260],
-      [193, 247],
-      [231, 234],
-    ],
-    WHITE,
-    0.95,
-  );
-  fillPoly(
-    [
-      [806, 316],
-      [816, 344],
-      [844, 354],
-      [816, 364],
-      [806, 392],
-      [796, 364],
-      [768, 354],
-      [796, 344],
-    ],
-    MINT,
-    0.95,
-  );
-  fillPoly(
-    [
-      [186, 620],
-      [193, 641],
-      [214, 648],
-      [193, 655],
-      [186, 676],
-      [179, 655],
-      [158, 648],
-      [179, 641],
-    ],
-    MINT_DARK,
-    0.9,
-  );
+  // next prompt with a block cursor
+  drawText('$', x0, y, 12, MINT);
+  fillRoundRect(x0 + 90, y - 8, 70, 90, 10, WHITE, 0.9);
+
+  // --- USDC coin sticker peeking from the corner ---
+  const coinX = 824;
+  const coinY = 830;
+  fillCircle(coinX, coinY, 70, BLUE);
+  fillCircle(coinX, coinY, 57, BLUE_LIGHT);
+  fillCircle(coinX, coinY, 47, BLUE);
+  fillRoundRect(coinX - 7, coinY - 35, 14, 70, 7, WHITE);
+  fillRoundRect(coinX - 25, coinY - 22, 50, 13, 6, WHITE);
+  fillRoundRect(coinX - 25, coinY + 9, 50, 13, 6, WHITE);
 }
 
 function crc32(buf: Uint8Array): number {
@@ -253,11 +207,10 @@ function chunk(type: string, data: Uint8Array): Buffer {
 }
 
 function writePng(path: string): void {
-  // 4x4 box-downsample of the supersampled canvas to RGBA8.
   const raw = Buffer.alloc(S * (S * 4 + 1));
   let o = 0;
   for (let y = 0; y < S; y++) {
-    raw[o++] = 0; // no filter
+    raw[o++] = 0;
     for (let x = 0; x < S; x++) {
       let r = 0;
       let g = 0;
@@ -265,7 +218,7 @@ function writePng(path: string): void {
       let a = 0;
       for (let sy = 0; sy < SS; sy++) {
         for (let sx = 0; sx < SS; sx++) {
-          const i = ((y * SS + sy) * S * SS + (x * SS + sx)) * 4;
+          const i = ((y * SS + sy) * W + (x * SS + sx)) * 4;
           const wa = px[i + 3]!;
           r += px[i]! * wa;
           g += px[i + 1]! * wa;
@@ -284,8 +237,8 @@ function writePng(path: string): void {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(S, 0);
   ihdr.writeUInt32BE(S, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
+  ihdr[8] = 8;
+  ihdr[9] = 6;
   const png = Buffer.concat([
     Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     chunk('IHDR', ihdr),
