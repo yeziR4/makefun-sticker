@@ -142,74 +142,94 @@ function render(): void {
   clear();
   const cx = S / 2;
 
-  // --- badge: white die-cut border, then a navy rounded panel ---
+  // --- badge: white die-cut border, navy panel ---
   fillRoundRect(72, 60, 880, 904, 140, WHITE);
   fillRoundRect(112, 100, 800, 824, 116, NAVY);
 
   // --- robot head ---
-  // antenna
-  fillRoundRect(cx - 12, 172, 24, 90, 12, NAVY_LIGHT);
-  fillCircle(cx, 160, 34, MINT);
-  fillCircle(cx, 160, 14, WHITE);
+  // antenna with a glow
+  fillRoundRect(cx - 14, 190, 28, 100, 14, NAVY_LIGHT);
+  fillCircle(cx, 172, 44, MINT_DARK);
+  fillCircle(cx, 170, 36, MINT);
+  fillCircle(cx, 170, 15, WHITE);
 
-  // head: rounded rectangle
-  fillRoundRect(cx - 250, 250, 500, 380, 96, NAVY_LIGHT);
+  // head: a wide rounded shape
+  fillRoundRect(cx - 262, 258, 524, 396, 110, NAVY_LIGHT);
   // visor
-  fillRoundRect(cx - 210, 300, 420, 220, 76, [12, 18, 32]);
-  // eyes
-  fillCircle(cx - 105, 410, 58, MINT);
-  fillCircle(cx + 105, 410, 58, MINT);
-  fillCircle(cx - 118, 396, 20, WHITE);
-  fillCircle(cx + 92, 396, 20, WHITE);
-  // smile: a thin mint bar
-  fillRoundRect(cx - 60, 560, 120, 18, 9, MINT);
+  fillRoundRect(cx - 216, 306, 432, 232, 84, [12, 18, 32]);
+  // eyes: big mint circles with two highlights each
+  fillCircle(cx - 108, 422, 62, MINT);
+  fillCircle(cx + 108, 422, 62, MINT);
+  fillCircle(cx - 124, 406, 22, WHITE);
+  fillCircle(cx - 92, 442, 10, WHITE);
+  fillCircle(cx + 92, 406, 22, WHITE);
+  fillCircle(cx + 124, 442, 10, WHITE);
+  // blush on the cheeks, below the visor
+  fillCircle(cx - 196, 566, 24, MINT_DARK);
+  fillCircle(cx + 196, 566, 24, MINT_DARK);
+  // smile
+  fillRoundRect(cx - 64, 596, 128, 20, 10, MINT);
   // ears
-  fillRoundRect(cx - 282, 380, 34, 120, 16, MINT_DARK);
-  fillRoundRect(cx + 248, 380, 34, 120, 16, MINT_DARK);
+  fillRoundRect(cx - 296, 392, 36, 128, 18, MINT_DARK);
+  fillRoundRect(cx + 260, 392, 36, 128, 18, MINT_DARK);
 
   // --- wordmark, centered under the head ---
   const scale = 11;
   const text = 'make.fun';
   const w = text.length * 6 * scale;
-  drawText(text, cx - w / 2, 680, scale, WHITE);
+  drawText(text, cx - w / 2, 700, scale, WHITE);
 
   // --- USDC-style coin, tucked into the bottom-right of the panel ---
-  const coinX = 812;
-  const coinY = 824;
-  fillCircle(coinX, coinY, 64, COIN);
-  fillCircle(coinX, coinY, 52, COIN_LIGHT);
-  fillCircle(coinX, coinY, 42, COIN);
-  fillRoundRect(coinX - 7, coinY - 32, 14, 64, 7, WHITE);
-  fillRoundRect(coinX - 23, coinY - 20, 46, 12, 6, WHITE);
-  fillRoundRect(coinX - 23, coinY + 8, 46, 12, 6, WHITE);
+  const coinX = 806;
+  const coinY = 818;
+  fillCircle(coinX, coinY, 66, COIN);
+  fillCircle(coinX, coinY, 54, COIN_LIGHT);
+  fillCircle(coinX, coinY, 44, COIN);
+  fillRoundRect(coinX - 7, coinY - 33, 14, 66, 7, WHITE);
+  fillRoundRect(coinX - 24, coinY - 21, 48, 13, 6, WHITE);
+  fillRoundRect(coinX - 24, coinY + 8, 48, 13, 6, WHITE);
 
   // sparkles
   fillPoly(
     [
-      [250, 190],
-      [262, 226],
-      [298, 238],
-      [262, 250],
-      [250, 286],
-      [238, 250],
-      [202, 238],
-      [238, 226],
+      [244, 196],
+      [257, 234],
+      [295, 247],
+      [257, 260],
+      [244, 298],
+      [231, 260],
+      [193, 247],
+      [231, 234],
     ],
     WHITE,
-    0.9,
+    0.95,
   );
   fillPoly(
     [
-      [810, 320],
-      [819, 346],
-      [845, 355],
-      [819, 364],
-      [810, 390],
-      [801, 364],
-      [775, 355],
-      [801, 346],
+      [806, 316],
+      [816, 344],
+      [844, 354],
+      [816, 364],
+      [806, 392],
+      [796, 364],
+      [768, 354],
+      [796, 344],
     ],
     MINT,
+    0.95,
+  );
+  fillPoly(
+    [
+      [186, 620],
+      [193, 641],
+      [214, 648],
+      [193, 655],
+      [186, 676],
+      [179, 655],
+      [158, 648],
+      [179, 641],
+    ],
+    MINT_DARK,
     0.9,
   );
 }
